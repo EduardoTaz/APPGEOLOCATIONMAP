@@ -1,48 +1,57 @@
-# APPGEOLOCATIONMAP
+# 🗺️ Mapa com Rotas - React Native & Expo
 
-## 📌 Descrição
-O **APPGEOLOCATIONMAP** é um aplicativo desenvolvido em React Native que utiliza a geolocalização para exibir a posição do usuário em um mapa interativo. O projeto demonstra como integrar APIs de mapas e obter a localização em tempo real.
+> Aplicativo móvel para visualização de mapas, localização em tempo real e cálculo de rotas entre pontos
+> 
+## 🌟 Visão Geral
 
-## 🚀 Tecnologias Utilizadas
-- [React Native](https://reactnative.dev/)
-- [Expo](https://expo.dev/)
-- [React Native Maps](https://github.com/react-native-maps/react-native-maps)
-- [Expo Location](https://docs.expo.dev/versions/latest/sdk/location/)
+Aplicativo desenvolvido com React Native e Expo que permite:
 
-## 📦 Instalação
-Para rodar o projeto localmente, siga os passos abaixo:
+- Visualizar mapa interativo
+- Obter localização atual do usuário
+- Buscar endereços e lugares
+- Calcular rotas entre dois pontos
+- Visualizar distância e tempo estimado
 
-1. **Clone o repositório:**
-   ```sh
-   git clone https://github.com/EduardoTaz/APPGEOLOCATIONMAP.git
-   ```
+## ✨ Funcionalidades
 
-2. **Acesse o diretório do projeto:**
-   ```sh
-   cd APPGEOLOCATIONMAP
-   ```
+### Mapa Interativo
+- Visualização de mapa com `react-native-maps`
+- Toque para selecionar pontos
+- Ajuste automático de zoom
 
-3. **Instale as dependências:**
-   ```sh
-   npm install
-   ```
+### Localização
+- GPS de alta precisão
+- Atualização em tempo real
+- Marcador de posição
 
-4. **Inicie o projeto:**
-   ```sh
-   expo start
-   ```
+### Rotas
+- Cálculo usando OSRM API
+- Visualização com Polyline
+- Exibição de distância e duração
 
-## 📌 Funcionalidades
-- Obtém a localização do usuário em tempo real.
-- Exibe um mapa interativo com a posição atual.
-- Atualiza automaticamente a posição conforme o usuário se move.
+### Busca
+- Geocodificação com Nominatim
+- Conversão endereço → coordenadas
+- Sugestões de lugares
 
-## ⚡ Como Usar
-1. Após iniciar o app, conceda permissão de localização.
-2. Aguarde o mapa carregar e exibir sua posição.
-3. Mova-se e observe a atualização da sua posição no mapa.
+## 🛠️ Pré-requisitos
 
-## 🛠 Dependências Principais
-- **React Native Maps**: Para exibição do mapa.
-- **Expo Location**: Para obter a localização do usuário.
+- Node.js 
+- NPM
+- Expo
+- Dispositivo móvel com Expo Go ou emulador
 
+## 🚀 Instalação
+
+```bash
+# Clone o repositório
+git clone https://github.com/EduardoTaz/APPGEOLOCATIONMAP.git
+
+# Acesse a pasta
+cd APPGEOLOCATIONMAP
+
+# Instale as dependências
+npm install
+
+# Inicie o projeto
+npx expo start
