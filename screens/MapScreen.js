@@ -1,169 +1,422 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 
-const MapScreen = () => {
-  const [location, setLocation] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [errorMsg, setErrorMsg] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [route, setRoute] = useState([]);
-  const [distance, setDistance] = useState(null);
+const TelaMapa = () => {
+  const [localizacao, setLocalizacao] = useState(null);
+  const [termoBusca, setTermoBusca] = useState('');
+  const [mensagemErro, setMensagemErro] = useState(null);
+  const [carregando, setCarregando] = useState(true);
+  const [pontosRota, setPontosRota] = useState([]);
+  const [coordenadasRota, setCoordenadasRota] = useState([]);
+  const [distancia, setDistancia] = useState(null);
+  const [duracao, setDuracao] = useState(null);
+
+  const mapaRef = useRef(null);
 
   useEffect(() => {
-    getLocation();
+    obterLocalizacao();
   }, []);
 
-  const getLocation = async () => {
-    setLoading(true);
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      setErrorMsg('Permissão de localização negada');
-      setLoading(false);
-      return;
+  useEffect(() => {
+    if (coordenadasRota.length > 0) {
+      ajustarMapaParaRota(coordenadasRota);
     }
+  }, [coordenadasRota]);
 
-    let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-    setLocation({
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    });
-    setLoading(false);
+  const obterLocalizacao = async () => {
+    setCarregando(true);
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setMensagemErro('Permissão de localização negada');
+        setCarregando(false);
+        return;
+      }
+
+      // localização 
+      let localizacaoAtual = await Location.getCurrentPositionAsync({ 
+        accuracy: Location.Accuracy.High 
+      });
+      
+      // atualizar estado com nova localização
+      const novaLocalizacao = {
+        latitude: localizacaoAtual.coords.latitude,
+        longitude: localizacaoAtual.coords.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      };
+      
+      setLocalizacao(novaLocalizacao);
+      setMensagemErro(null);
+      
+      // centralizar mapa nova localização
+      if (mapaRef.current) {
+        mapaRef.current.animateToRegion(novaLocalizacao, 1000);
+      }
+      
+    } catch (erro) {
+      console.error('Erro ao obter localização:', erro);
+      setMensagemErro('Erro ao obter localização. Tente novamente.');
+    } finally {
+      setCarregando(false);
+    }
   };
 
-  const searchLocation = async () => {
-    if (!searchQuery) return;
-    setLoading(true);
-  
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`;
+  // buscar local por endereço
+  const buscarLocal = async () => {
+    if (!termoBusca.trim()) {
+      setMensagemErro('Digite um endereço para buscar');
+      return;
+    }
+    
+    setCarregando(true);
+    setMensagemErro(null);
   
     try {
-      const response = await fetch(url, {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(termoBusca)}`;
+      
+      const resposta = await fetch(url, {
         headers: {
-          'User-Agent': 'MeuAppGeolocalizacao/1.0 (contato@meuemail.com)',
+          'User-Agent': 'MeuAppMapa/1.0 (contato@meuemail.com)',
           'Accept-Language': 'pt-BR'
         }
       });
   
-      if (!response.ok) {
-        throw new Error(`Erro ao buscar local: ${response.status}`);
-      }
+      if (!resposta.ok) throw new Error(`Erro HTTP: ${resposta.status}`);
   
-      const data = await response.json();
+      const dados = await resposta.json();
   
-      if (data.length === 0) {
-        setErrorMsg('Nenhuma cidade encontrada. Tente outro nome.');
+      if (dados.length === 0) {
+        setMensagemErro('Nenhum local encontrado. Tente outro endereço.');
         return;
       }
   
-      const place = data[0];
-      setLocation({
-        latitude: parseFloat(place.lat),
-        longitude: parseFloat(place.lon),
+      // Pegar o primeiro resultado
+      const lugar = dados[0];
+      const novaLocalizacao = {
+        latitude: parseFloat(lugar.lat),
+        longitude: parseFloat(lugar.lon),
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
-      });
-  
-      setErrorMsg(null); // Limpar mensagens de erro anteriores, se houver.
-  
-    } catch (error) {
-      console.error('Erro ao buscar local:', error);
-      setErrorMsg('Erro ao buscar cidade. Verifique sua conexão e tente novamente.');
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-
-  const handleMapPress = (event) => {
-    const newPoint = event.nativeEvent.coordinate;
-    if (route.length < 2) {
-      setRoute([...route, newPoint]);
-      if (route.length === 1) {
-        calculateDistance(route[0], newPoint);
+      };
+      
+      setLocalizacao(novaLocalizacao);
+      
+      // centralizar mapa no local encontrado
+      if (mapaRef.current) {
+        mapaRef.current.animateToRegion(novaLocalizacao, 1000);
       }
+      
+    } catch (erro) {
+      console.error('Erro na busca:', erro);
+      setMensagemErro('Erro ao buscar local. Verifique sua conexão.');
+    } finally {
+      setCarregando(false);
+    }
+  };
+  
+  // toques mpaa
+  const manipularToqueMapa = (evento) => {
+    if (pontosRota.length >= 2) return; // Limitar a 2 pontos
+    
+    const novoPonto = {
+      ...evento.nativeEvent.coordinate,
+      id: Date.now().toString() // ID único para cada ponto
+    };
+    
+    const novosPontos = [...pontosRota, novoPonto];
+    setPontosRota(novosPontos);
+    
+    // se temos 2 pontos, calcula a rota
+    if (novosPontos.length === 2) {
+      calcularRota(novosPontos[0], novosPontos[1]);
     }
   };
 
-  const calculateDistance = (pointA, pointB) => {
-    const toRad = (value) => (value * Math.PI) / 180;
-    const R = 6371; 
-    const dLat = toRad(pointB.latitude - pointA.latitude);
-    const dLon = toRad(pointB.longitude - pointA.longitude);
-    const lat1 = toRad(pointA.latitude);
-    const lat2 = toRad(pointB.latitude);
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1) * Math.cos(lat2) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c;
-    setDistance(distance.toFixed(2));
+  // calcular rota usando API OSRM
+  const calcularRota = async (origem, destino) => {
+    setCarregando(true);
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${origem.longitude},${origem.latitude};${destino.longitude},${destino.latitude}?overview=full&geometries=geojson`;
+      
+      const resposta = await fetch(url);
+      if (!resposta.ok) throw new Error(`Erro HTTP: ${resposta.status}`);
+      
+      const dados = await resposta.json();
+      
+      if (dados.routes.length === 0) {
+        throw new Error('Nenhuma rota encontrada');
+      }
+      
+      // pegar coordenadas da rota
+      const coordenadas = dados.routes[0].geometry.coordinates.map(coord => ({
+        latitude: coord[1],
+        longitude: coord[0]
+      }));
+      
+      setCoordenadasRota(coordenadas);
+      setDistancia((dados.routes[0].distance / 1000).toFixed(2)); // km
+      setDuracao((dados.routes[0].duration / 60).toFixed(1)); // minutos
+      
+    } catch (erro) {
+      console.error('Erro ao calcular rota:', erro);
+      Alert.alert('Erro', 'Não foi possível calcular a rota. Verifique os pontos selecionados.');
+    } finally {
+      setCarregando(false);
+    }
   };
 
-  const clearRoute = () => {
-    setRoute([]);
-    setDistance(null);
+  //  ajusta o mapa par mostra toda a rota
+  const ajustarMapaParaRota = (coordenadas) => {
+    if (coordenadas.length === 0 || !mapaRef.current) return;
+    
+    // calcula limites da rota
+    let minLat = coordenadas[0].latitude;
+    let maxLat = coordenadas[0].latitude;
+    let minLon = coordenadas[0].longitude;
+    let maxLon = coordenadas[0].longitude;
+    
+    coordenadas.forEach(coord => {
+      minLat = Math.min(minLat, coord.latitude);
+      maxLat = Math.max(maxLat, coord.latitude);
+      minLon = Math.min(minLon, coord.longitude);
+      maxLon = Math.max(maxLon, coord.longitude);
+    });
+    
+    mapaRef.current.fitToCoordinates(coordenadas, {
+      edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+      animated: true
+    });
+  };
+
+  const limparRota = () => {
+    setPontosRota([]);
+    setCoordenadasRota([]);
+    setDistancia(null);
+    setDuracao(null);
+  };
+
+  const usarLocalizacaoAtualComoPartida = () => {
+    if (!localizacao || pontosRota.length >= 2) return;
+    
+    const novoPonto = {
+      latitude: localizacao.latitude,
+      longitude: localizacao.longitude,
+      id: 'local-atual'
+    };
+    
+    const novosPontos = [...pontosRota, novoPonto];
+    setPontosRota(novosPontos);
+    
+    // Se já tiver um ponto, calcular rota
+    if (novosPontos.length === 2) {
+      calcularRota(novosPontos[0], novosPontos[1]);
+    }
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.searchContainer}>
+    <View style={estilos.container}>
+      <View style={estilos.containerBusca}>
         <TextInput
-          style={styles.input}
-          placeholder="Buscar local..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
+          style={estilos.entrada}
+          placeholder="Digite um endereço..."
+          value={termoBusca}
+          onChangeText={setTermoBusca}
           placeholderTextColor="#888"
         />
-        <TouchableOpacity style={styles.button} onPress={searchLocation}>
-          <Text style={styles.buttonText}>Buscar</Text>
+        <TouchableOpacity 
+          style={[estilos.botao, estilos.botaoBusca]} 
+          onPress={buscarLocal}
+          disabled={carregando}
+        >
+          <Text style={estilos.textoBotao}>Buscar</Text>
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.updateButton} onPress={getLocation}>
-        <Text style={styles.buttonText}>Atualizar Localização</Text>
-      </TouchableOpacity>
+      <View style={estilos.containerBotoes}>
+        <TouchableOpacity 
+          style={[estilos.botao, estilos.botaoAtualizar]} 
+          onPress={obterLocalizacao}
+          disabled={carregando}
+        >
+          <Text style={estilos.textoBotao}>Minha Localização</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[estilos.botao, estilos.botaoUsarLocalizacao]} 
+          onPress={usarLocalizacaoAtualComoPartida}
+          disabled={!localizacao || carregando || pontosRota.length >= 2}
+        >
+          <Text style={estilos.textoBotao}>Usar como Partida</Text>
+        </TouchableOpacity>
+      </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color="#3498db" style={styles.loader} />
+      {carregando && !localizacao ? (
+        <View style={estilos.containerCarregando}>
+          <ActivityIndicator size="large" color="#3498db" />
+          <Text style={estilos.textoCarregando}>Obtendo localização...</Text>
+        </View>
       ) : (
-        location && (
-          <MapView style={styles.map} region={location} onPress={handleMapPress}>
-            <Marker coordinate={location} title="Local Atual" />
-            {route.map((point, index) => (
-              <Marker key={index} coordinate={point} title={`Ponto ${index + 1}`} />
-            ))}
-            {route.length === 2 && (
-              <Polyline coordinates={route} strokeWidth={4} strokeColor="blue" />
-            )}
-          </MapView>
-        )
+        <MapView 
+          ref={mapaRef}
+          style={estilos.mapa} 
+          region={localizacao}
+          onPress={manipularToqueMapa}
+          showsUserLocation={true}
+          showsMyLocationButton={false}
+        >
+          {localizacao && (
+            <Marker 
+              coordinate={localizacao} 
+              title="Você está aqui" 
+              pinColor="#3498db"
+            />
+          )}
+          
+          {pontosRota.map((ponto, indice) => (
+            <Marker
+              key={ponto.id}
+              coordinate={ponto}
+              title={indice === 0 ? "Partida" : "Destino"}
+              pinColor={indice === 0 ? "#2ecc71" : "#e74c3c"}
+            />
+          ))}
+          
+          {coordenadasRota.length > 0 && (
+            <Polyline 
+              coordinates={coordenadasRota} 
+              strokeWidth={4} 
+              strokeColor="#3498db"
+            />
+          )}
+        </MapView>
       )}
 
-      {distance && <Text style={styles.distanceText}>Distância: {distance} km</Text>}
-      {route.length === 2 && (
-        <TouchableOpacity style={styles.clearButton} onPress={clearRoute}>
-          <Text style={styles.buttonText}>Limpar Rota</Text>
+      {(distancia || duracao) && (
+        <View style={estilos.containerInfoRota}>
+          <Text style={estilos.textoInfoRota}>
+            Distância: {distancia} km
+          </Text>
+          <Text style={estilos.textoInfoRota}>
+            Duração: {duracao} min
+          </Text>
+        </View>
+      )}
+
+      {pontosRota.length > 0 && (
+        <TouchableOpacity 
+          style={[estilos.botao, estilos.botaoLimpar]} 
+          onPress={limparRota}
+          disabled={carregando}
+        >
+          <Text style={estilos.textoBotao}>Limpar Rota</Text>
         </TouchableOpacity>
+      )}
+
+      {mensagemErro && (
+        <Text style={estilos.textoErro}>{mensagemErro}</Text>
       )}
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 15 },
-  searchContainer: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 10, padding: 10, width: '100%', maxWidth: 400, marginBottom: 10 },
-  input: { flex: 1, height: 40, fontSize: 16, color: '#333' },
-  button: { backgroundColor: '#3498db', paddingVertical: 8, paddingHorizontal: 15, borderRadius: 8 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  updateButton: { marginBottom: 10, backgroundColor: '#27ae60', padding: 10, borderRadius: 8 },
-  clearButton: { marginTop: 10, backgroundColor: '#e74c3c', padding: 10, borderRadius: 8 },
-  map: { width: '100%', height: '60%', borderRadius: 15 },
-  loader: { marginTop: 20 },
-  distanceText: { fontSize: 16, marginTop: 10, color: '#2c3e50' },
+const estilos = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    padding: 16,
+  },
+  containerBusca: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  entrada: {
+    flex: 1,
+    height: 48,
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    borderTopLeftRadius: 8,
+    borderBottomLeftRadius: 8,
+    fontSize: 16,
+    color: '#333',
+  },
+  containerBotoes: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    gap: 8,
+  },
+  botao: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  botaoBusca: {
+    backgroundColor: '#3498db',
+    borderTopLeftRadius: 0,
+    borderBottomLeftRadius: 0,
+    borderTopRightRadius: 8,
+    borderBottomRightRadius: 8,
+    minWidth: 80,
+  },
+  botaoAtualizar: {
+    backgroundColor: '#2ecc71',
+    flex: 1,
+  },
+  botaoUsarLocalizacao: {
+    backgroundColor: '#f39c12',
+    flex: 1,
+  },
+  botaoLimpar: {
+    backgroundColor: '#e74c3c',
+    marginTop: 12,
+  },
+  textoBotao: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  mapa: {
+    flex: 1,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  containerCarregando: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  textoCarregando: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#555',
+  },
+  containerInfoRota: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  textoInfoRota: {
+    fontSize: 16,
+    color: '#2c3e50',
+    marginBottom: 4,
+  },
+  textoErro: {
+    color: '#e74c3c',
+    textAlign: 'center',
+    marginTop: 8,
+    fontSize: 16,
+  },
 });
 
-export default MapScreen;
+export default TelaMapa;
